@@ -19,11 +19,11 @@ struct RuntimeError {
   static constexpr unsigned int MAX_BACKTRACE_SIZE = 100;
   char what[MAX_RUNTIME_ERROR_SIZE];
   void* backtrace[MAX_BACKTRACE_SIZE];
-  int maxBacktrace;
+  int maxBacktrace = 0;
 };
 
 struct RuntimeErrorRef {
-  int index;
+  int index = 0;
 };
 
 RuntimeErrorRef runtime_error(const char*);

@@ -10,6 +10,11 @@
 
 #include "Framework/RuntimeError.h"
 
+#ifdef __linux__
+#define CHECK_CAPABILITIES 1
+#include <linux/capability.h>
+#include <sys/capability.h>
+#endif
 #include <cstdio>
 #include <atomic>
 #include <cstdarg>
@@ -23,6 +28,38 @@ namespace
 {
 static RuntimeError gError[RuntimeError::MAX_RUNTIME_ERRORS];
 static std::atomic<bool> gErrorBooking[RuntimeError::MAX_RUNTIME_ERRORS];
+
+bool canDumpBacktrace() {
+#ifdef CHECK_CAPABILITIES
+  cap_flag_value_t value;
+  cap_t current;
+
+  /*
+   *  If we're running under linux, we first need to check if we have
+   *  permission to to ptrace. We do that using the capabilities
+   *  functions.
+   */
+  current = cap_get_proc();
+  if (!current) {
+    return false;
+  }
+
+  if (cap_get_flag(current, CAP_SYS_PTRACE, CAP_PERMITTED, &value) < 0) {
+    cap_free(current);
+    return false;
+  }
+
+  if ((value == CAP_SET) && (cap_get_flag(current, CAP_SYS_PTRACE, CAP_EFFECTIVE, &value) < 0)) {
+    cap_free(current);
+    return false;
+  }
+  return true;
+#elif __APPLE__
+  return true; 
+#else
+  return false;
+#endif
+}
 } // namespace
 
 void clean_all_runtime_errors()
@@ -52,7 +89,7 @@ RuntimeErrorRef runtime_error_f(const char* format, ...)
   va_list args;
   va_start(args, format);
   vsnprintf(gError[i].what, RuntimeError::MAX_RUNTIME_ERROR_SIZE, format, args);
-  gError[i].maxBacktrace = backtrace(gError[i].backtrace, RuntimeError::MAX_BACKTRACE_SIZE);
+  gError[i].maxBacktrace = canDumpBacktrace() ? backtrace(gError[i].backtrace, RuntimeError::MAX_BACKTRACE_SIZE) : 0;
   return RuntimeErrorRef{i};
 }
 
@@ -64,7 +101,7 @@ RuntimeErrorRef runtime_error(const char* s)
     ++i;
   }
   strncpy(gError[i].what, s, RuntimeError::MAX_RUNTIME_ERROR_SIZE);
-  gError[i].maxBacktrace = backtrace(gError[i].backtrace, RuntimeError::MAX_BACKTRACE_SIZE);
+  gError[i].maxBacktrace = canDumpBacktrace() ? backtrace(gError[i].backtrace, RuntimeError::MAX_BACKTRACE_SIZE) : 0;
   return RuntimeErrorRef{i};
 }
 
