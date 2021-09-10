@@ -376,7 +376,7 @@ bool TableToTree::addAllBranches()
 TTree* TableToTree::process()
 {
 
-  bool togo = mTreePtr->GetNbranches() > 0;
+  bool togo = (mTreePtr->GetNbranches() > 0) && (mTable->num_rows() > 0);
   while (togo) {
     // fill the tree
     mTreePtr->Fill();
@@ -616,7 +616,8 @@ size_t ColumnIterator::push()
 {
   arrow::Status stat;
 
-  TBufferFile buffer{TBuffer::EMode::kWrite, 64 * 1024};
+  static TBufferFile buffer{TBuffer::EMode::kWrite, 4 * 1024 * 1024};
+  buffer.Reset();
   auto size = mBranch->GetBulkRead().GetBulkEntries(mPos, buffer);
   if (size < 0) {
     return 0;
